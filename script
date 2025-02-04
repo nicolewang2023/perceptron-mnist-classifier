@@ -1,0 +1,117 @@
+"""
+Author: Nicole Wang
+Date: April 2022
+
+This script implements the perceptron algorithm to classify handwritten digits from MNIST.
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# List of names corresponding to different sports categories
+names = ["football","baseball","basketball","tennis","softball","canoeing","handball","rugby", 
+         "hockey","ice hockey","swimming","track","boxing","volleyball","lacrosse","skiing",
+         "golf","polo","surfing","wrestling","gymnastics"]
+
+# Load a CSV file containing pairwise similarity values between these sports
+similarities = np.loadtxt(open("Assignment6-similarities.csv", "rb"), delimiter=",", skiprows=1)
+
+# Convert similarities into distances (higher similarity -> lower distance)
+distances = 1 - similarities
+
+# Extract x and y coordinates from the distances matrix
+reported_x = [x[0] for x in distances]
+reported_y = [x[1] for x in distances]
+
+# Initialize an empty array for storing distances
+reported_distances = np.array([])
+
+# Compute pairwise distances between all 21 sports categories
+for i in range(0, 21):
+    for j in range(0, 21):
+        reported_distances = np.append(reported_distances, dist(reported_x[i], reported_y[j]))
+        
+# Number of dimensions to use for visualization (reducing complexity)
+D = 2
+N = distances.shape[0]  # Number of sports categories
+assert(distances.shape[1] == N and N == len(names))  # Ensure consistency
+
+# Function to compute Euclidean distance between two points
+def dist(a, b):
+    return np.linalg.norm(a - b)
+
+# Compute the stress function, measuring the difference between expected and actual distances
+def stress(p):
+    output = []
+    for i in range(21):
+        for j in range(i, 21):
+            if i != j:
+                output.append((distances[i][j] - dist(p[i], p[j])) ** 2)
+    return sum(output)
+
+# Function to add a small delta to a coordinate of the position matrix
+def add_delta(p, i, d, delta):
+    v = np.array(p)
+    v[i, d] += delta
+    return v
+
+# Compute numerical gradient of the stress function for a given coordinate
+def compute_gradient(p, i, d, delta=0.001):
+    return (stress(add_delta(p, i, d, delta)) - stress(p)) / delta
+
+# Compute the full gradient of the stress function
+def compute_full_gradient(p):
+    output = np.empty_like(p)
+    for i in range(len(p)):
+        for d in range(len(p[i])):
+            output[i][d] = compute_gradient(p, i, d)
+    return output
+
+# Initialize positions randomly for each sport in a 2D space
+pos0 = np.random.normal(0.0, 1.0, size=(N, D))
+
+# Function to iteratively update positions to minimize stress
+def move_a_step(pos):
+    for steps in range(100):
+        pos = pos - 0.01 * compute_full_gradient(pos)  # Gradient descent with step size 0.01
+    print(stress(pos))
+    return pos
+
+# Perform optimization on the initial positions
+pos1 = move_a_step(pos0)
+
+# Extract x and y coordinates for visualization
+xs = [x[0] for x in pos1]
+ys = [x[1] for x in pos1]
+
+# Plot the optimized positions of sports categories in 2D space
+plt.scatter(xs, ys)
+for i in range(len(pos1)):
+    plt.annotate(names[i], (xs[i], ys[i]))
+
+# Compute Euclidean distances between all optimized positions
+euclidean_distances = np.array([])
+for i in range(0, len(pos1)):
+    for j in range(0, len(pos1)):
+        euclidean_distances = np.append(euclidean_distances, dist(xs[i], ys[j]))
+
+# Unique pairwise distances
+unique_distances = np.unique(distances)
+
+# Iterate stress computation for multiple steps and visualize the progress
+def iterate_stress(pos, n):
+    stress_arr = np.array([stress(pos)])
+    for _ in range(n):
+        new_pos = move_a_step(pos)
+        stress_arr = np.append(stress_arr, stress(new_pos))
+    return stress_arr
+
+# Define different iterations for stress reduction and store results
+x_ax = [10, 20, 30, 50]
+y_ax = [iterate_stress(pos1, 10), iterate_stress(pos1, 20), iterate_stress(pos1, 30), iterate_stress(pos1, 50)]
+plt.plot(x_ax, y_ax)
+
+# Generate multiple random initializations for comparison
+random_initials = np.array([])
+for _ in range(10):
+    random_initials = np.append(random_initials, np.random.normal(0.0, 1.0, size=(N, D)))
